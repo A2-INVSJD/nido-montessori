@@ -133,7 +133,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">📱</span>
-                  <span className="text-gray-700">+504 XXXX-XXXX</span>
+                  <span className="text-gray-700">+504 9351-8599</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">✉️</span>
@@ -146,16 +146,22 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-800 text-white py-8">
+      <footer className="bg-gradient-to-b from-orange-50 to-orange-100 py-12 border-t border-orange-200">
         <div className="max-w-6xl mx-auto px-4 text-center">
           <Image 
             src="/images/logo.png" 
             alt="Nido Montessori" 
-            width={120} 
-            height={60}
-            className="mx-auto mb-4 brightness-0 invert"
+            width={180} 
+            height={100}
+            className="mx-auto mb-6"
           />
-          <p className="text-gray-400">
+          <p className="text-gray-600 mb-2">
+            🪹 Donde cada niño florece
+          </p>
+          <p className="text-sm text-gray-500 mb-4">
+            📍 San Pedro Sula, Honduras • 📱 +504 9351-8599
+          </p>
+          <p className="text-xs text-gray-400">
             © {new Date().getFullYear()} Nido Montessori. Todos los derechos reservados.
           </p>
         </div>
