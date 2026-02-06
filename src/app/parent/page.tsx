@@ -17,23 +17,23 @@ export default function ParentLogin() {
     setLoading(true);
     setError('');
 
-    // Get students from localStorage
-    const savedStudents = localStorage.getItem('nido_students');
-    if (!savedStudents) {
-      setError('No hay estudiantes registrados. Contacte al director.');
-      setLoading(false);
-      return;
-    }
+    try {
+      // Import db dynamically to avoid SSR issues
+      const db = await import('@/lib/db');
+      
+      // Find student by access code in Firestore
+      const student = await db.getStudentByAccessCode(accessCode);
 
-    const students: Student[] = JSON.parse(savedStudents);
-    const student = students.find(s => s.accessCode.toUpperCase() === accessCode.toUpperCase());
-
-    if (student) {
-      localStorage.setItem('parentAuth', student.id);
-      localStorage.setItem('parentStudentName', `${student.firstName} ${student.lastName}`);
-      router.push(`/parent/${student.id}`);
-    } else {
-      setError('Código de acceso inválido. Verifique con el director.');
+      if (student) {
+        localStorage.setItem('parentAuth', student.id);
+        localStorage.setItem('parentStudentName', `${student.firstName} ${student.lastName}`);
+        router.push(`/parent/${student.id}`);
+      } else {
+        setError('Código de acceso inválido. Verifique con el director.');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Error al conectar. Por favor intente de nuevo.');
     }
     setLoading(false);
   };

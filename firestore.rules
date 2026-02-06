@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Students collection
+    match /students/{studentId} {
+      allow read: if true;  // Anyone can read (needed for parent portal)
+      allow write: if true; // For now, allow writes (director creates students)
+    }
+    
+    // Attendance collection
+    match /attendance/{recordId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Directors collection
+    match /directors/{directorId} {
+      allow read: if true;  // Needed for login verification
+      allow write: if true; // For initial setup
+    }
+  }
+}

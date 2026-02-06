@@ -1,91 +1,59 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Student, AttendanceRecord } from '@/lib/types';
-
-// Demo students data
-const DEMO_STUDENTS: Student[] = [
-  {
-    id: '1',
-    firstName: 'María',
-    lastName: 'López',
-    dateOfBirth: '2022-03-15',
-    age: 3,
-    program: 'montessori',
-    parentName: 'Ana López',
-    parentPhone: '+504 9999-1111',
-    parentEmail: 'ana.lopez@email.com',
-    emergencyContact: 'Pedro López',
-    emergencyPhone: '+504 9999-2222',
-    accessCode: 'MARIA2024',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    firstName: 'Carlos',
-    lastName: 'Martínez',
-    dateOfBirth: '2020-08-22',
-    age: 5,
-    program: 'daycare',
-    parentName: 'Rosa Martínez',
-    parentPhone: '+504 9999-3333',
-    parentEmail: 'rosa.martinez@email.com',
-    emergencyContact: 'Juan Martínez',
-    emergencyPhone: '+504 9999-4444',
-    accessCode: 'CARLOS2024',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    firstName: 'Sofía',
-    lastName: 'Hernández',
-    dateOfBirth: '2021-11-08',
-    age: 4,
-    program: 'montessori',
-    parentName: 'Carmen Hernández',
-    parentPhone: '+504 9999-5555',
-    parentEmail: 'carmen.h@email.com',
-    emergencyContact: 'Miguel Hernández',
-    emergencyPhone: '+504 9999-6666',
-    accessCode: 'SOFIA2024',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-];
+import * as db from '@/lib/db';
 
 export default function DirectorDashboard() {
   const router = useRouter();
-  const [students, setStudents] = useState<Student[]>(DEMO_STUDENTS);
+  const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceRecord>>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [activeTab, setActiveTab] = useState<'students' | 'attendance'>('students');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Initialize default data if needed
+      await db.initializeDefaultData();
+      
+      // Load students
+      const studentsData = await db.getStudents();
+      setStudents(studentsData);
+      
+      // Load today's attendance
+      const today = new Date().toISOString().split('T')[0];
+      const todayAttendance = await db.getAttendanceByDate(today);
+      const attendanceMap: Record<string, AttendanceRecord> = {};
+      todayAttendance.forEach(record => {
+        attendanceMap[`${record.studentId}_${record.date}`] = record;
+      });
+      setAttendance(attendanceMap);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Error al cargar los datos. Por favor, recarga la página.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     // Check if logged in
     const auth = localStorage.getItem('directorAuth');
     if (!auth) {
       router.push('/director');
+      return;
     }
-
-    // Load saved data from localStorage
-    const savedStudents = localStorage.getItem('nido_students');
-    if (savedStudents) {
-      setStudents(JSON.parse(savedStudents));
-    } else {
-      localStorage.setItem('nido_students', JSON.stringify(DEMO_STUDENTS));
-    }
-
-    const savedAttendance = localStorage.getItem('nido_attendance');
-    if (savedAttendance) {
-      setAttendance(JSON.parse(savedAttendance));
-    }
-  }, [router]);
+    loadData();
+  }, [router, loadData]);
 
   const handleLogout = () => {
     localStorage.removeItem('directorAuth');
@@ -96,34 +64,29 @@ export default function DirectorDashboard() {
   const today = new Date().toISOString().split('T')[0];
   const currentTime = new Date().toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-  const recordEntry = (studentId: string) => {
+  const recordEntry = async (studentId: string) => {
     const key = `${studentId}_${today}`;
-    const newAttendance = {
-      ...attendance,
-      [key]: {
-        id: key,
-        studentId,
-        date: today,
-        entryTime: currentTime,
-        exitTime: null,
-      },
+    const record: AttendanceRecord = {
+      id: key,
+      studentId,
+      date: today,
+      entryTime: currentTime,
+      exitTime: null,
     };
-    setAttendance(newAttendance);
-    localStorage.setItem('nido_attendance', JSON.stringify(newAttendance));
+    
+    await db.recordAttendance(record);
+    setAttendance(prev => ({ ...prev, [key]: record }));
   };
 
-  const recordExit = (studentId: string) => {
+  const recordExit = async (studentId: string) => {
     const key = `${studentId}_${today}`;
     if (attendance[key]) {
-      const newAttendance = {
-        ...attendance,
-        [key]: {
-          ...attendance[key],
-          exitTime: currentTime,
-        },
+      const updated: AttendanceRecord = {
+        ...attendance[key],
+        exitTime: currentTime,
       };
-      setAttendance(newAttendance);
-      localStorage.setItem('nido_attendance', JSON.stringify(newAttendance));
+      await db.recordAttendance(updated);
+      setAttendance(prev => ({ ...prev, [key]: updated }));
     }
   };
 
@@ -150,6 +113,30 @@ export default function DirectorDashboard() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button onClick={loadData} className="bg-blue-600 text-white px-4 py-2 rounded-lg">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -161,6 +148,7 @@ export default function DirectorDashboard() {
             </Link>
             <div className="h-8 w-px bg-gray-300" />
             <span className="text-gray-600 font-medium">Panel de Director</span>
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">🔥 Firestore</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
@@ -275,7 +263,6 @@ export default function DirectorDashboard() {
                     const entryTime = record?.entryTime;
                     const exitTime = record?.exitTime;
                     
-                    // Calculate hours
                     let hours = '-';
                     if (entryTime && exitTime) {
                       const [entryH, entryM] = entryTime.split(':').map(Number);
@@ -399,10 +386,10 @@ export default function DirectorDashboard() {
       {showAddModal && (
         <AddStudentModal
           onClose={() => setShowAddModal(false)}
-          onAdd={(student) => {
-            const newStudents = [...students, student];
-            setStudents(newStudents);
-            localStorage.setItem('nido_students', JSON.stringify(newStudents));
+          onAdd={async (studentData) => {
+            const id = await db.createStudent(studentData);
+            const newStudent = { ...studentData, id } as Student;
+            setStudents(prev => [...prev, newStudent]);
             setShowAddModal(false);
           }}
         />
@@ -411,7 +398,8 @@ export default function DirectorDashboard() {
   );
 }
 
-function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (student: Student) => void }) {
+function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (student: Omit<Student, 'id'>) => Promise<void> }) {
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -424,23 +412,23 @@ function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (stud
     emergencyPhone: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     
     const dob = new Date(formData.dateOfBirth);
     const age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     const accessCode = `${formData.firstName.toUpperCase().slice(0, 4)}${Date.now().toString().slice(-4)}`;
     
-    const newStudent: Student = {
+    await onAdd({
       ...formData,
-      id: Date.now().toString(),
       age,
       accessCode,
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    });
     
-    onAdd(newStudent);
+    setLoading(false);
   };
 
   return (
@@ -490,7 +478,7 @@ function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (stud
               <label className="block text-sm font-medium text-gray-700 mb-1">Programa</label>
               <select
                 value={formData.program}
-                onChange={(e) => setFormData({ ...formData, program: e.target.value as Student['program'] })}
+                onChange={(e) => setFormData({ ...formData, program: e.target.value as typeof formData.program })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               >
                 <option value="montessori">Montessori (1-4 años)</option>
@@ -562,9 +550,10 @@ function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (stud
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400"
             >
-              Agregar Estudiante
+              {loading ? 'Guardando...' : 'Agregar Estudiante'}
             </button>
           </div>
         </form>

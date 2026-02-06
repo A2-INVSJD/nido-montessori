@@ -12,23 +12,31 @@ export default function DirectorLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Demo credentials for testing
-  const DEMO_EMAIL = 'director@nidomontessori.hn';
-  const DEMO_PASSWORD = 'nido2024';
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // For demo purposes, using simple validation
-    // In production, this would use Firebase Auth
-    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      localStorage.setItem('directorAuth', 'true');
-      localStorage.setItem('directorEmail', email);
-      router.push('/director/dashboard');
-    } else {
-      setError('Credenciales incorrectas. Intente de nuevo.');
+    try {
+      // Import db dynamically to avoid SSR issues
+      const db = await import('@/lib/db');
+      
+      // Initialize default data (creates director if not exists)
+      await db.initializeDefaultData();
+      
+      // Verify credentials against Firestore
+      const isValid = await db.verifyDirectorLogin(email, password);
+      
+      if (isValid) {
+        localStorage.setItem('directorAuth', 'true');
+        localStorage.setItem('directorEmail', email);
+        router.push('/director/dashboard');
+      } else {
+        setError('Credenciales incorrectas. Intente de nuevo.');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Error al conectar. Por favor intente de nuevo.');
     }
     setLoading(false);
   };

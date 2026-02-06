@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Student, AttendanceRecord } from '@/lib/types';
+import * as db from '@/lib/db';
 
 export default function ParentChildView() {
   const router = useRouter();
@@ -13,8 +14,34 @@ export default function ParentChildView() {
   
   const [student, setStudent] = useState<Student | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [signatureType, setSignatureType] = useState<'entry' | 'exit'>('entry');
+  const [loading, setLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Load student data from Firestore
+      const studentData = await db.getStudent(childId);
+      if (studentData) {
+        setStudent(studentData);
+      }
+
+      // Load attendance data from Firestore
+      const attendanceData = await db.getAttendanceByStudent(childId);
+      setAttendance(attendanceData.sort((a, b) => b.date.localeCompare(a.date)));
+
+      // Load today's attendance
+      const today = await db.getTodayAttendance(childId);
+      setTodayRecord(today);
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [childId]);
 
   useEffect(() => {
     // Check auth
@@ -23,27 +50,8 @@ export default function ParentChildView() {
       router.push('/parent');
       return;
     }
-
-    // Load student data
-    const savedStudents = localStorage.getItem('nido_students');
-    if (savedStudents) {
-      const students: Student[] = JSON.parse(savedStudents);
-      const found = students.find(s => s.id === childId);
-      if (found) {
-        setStudent(found);
-      }
-    }
-
-    // Load attendance data
-    const savedAttendance = localStorage.getItem('nido_attendance');
-    if (savedAttendance) {
-      const allAttendance = JSON.parse(savedAttendance);
-      const studentAttendance = Object.values(allAttendance).filter(
-        (a) => (a as AttendanceRecord).studentId === childId
-      ) as AttendanceRecord[];
-      setAttendance(studentAttendance.sort((a, b) => b.date.localeCompare(a.date)));
-    }
-  }, [childId, router]);
+    loadData();
+  }, [childId, router, loadData]);
 
   const handleLogout = () => {
     localStorage.removeItem('parentAuth');
@@ -51,17 +59,15 @@ export default function ParentChildView() {
     router.push('/parent');
   };
 
-  const handleSignature = (signatureData: string) => {
+  const handleSignature = async (signatureData: string) => {
     const today = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const key = `${childId}_${today}`;
     
-    const savedAttendance = localStorage.getItem('nido_attendance');
-    const allAttendance = savedAttendance ? JSON.parse(savedAttendance) : {};
+    let record: AttendanceRecord;
     
     if (signatureType === 'entry') {
-      allAttendance[key] = {
-        id: key,
+      record = {
+        id: `${childId}_${today}`,
         studentId: childId,
         date: today,
         entryTime: currentTime,
@@ -69,24 +75,23 @@ export default function ParentChildView() {
         entrySignature: signatureData,
         signedBy: student?.parentName,
       };
-    } else if (allAttendance[key]) {
-      allAttendance[key].exitTime = currentTime;
-      allAttendance[key].exitSignature = signatureData;
+    } else {
+      record = {
+        ...todayRecord!,
+        exitTime: currentTime,
+        exitSignature: signatureData,
+      };
     }
     
-    localStorage.setItem('nido_attendance', JSON.stringify(allAttendance));
+    await db.recordAttendance(record);
+    setTodayRecord(record);
     
-    // Update local state
-    const studentAttendance = Object.values(allAttendance).filter(
-      (a) => (a as AttendanceRecord).studentId === childId
-    ) as AttendanceRecord[];
-    setAttendance(studentAttendance.sort((a, b) => b.date.localeCompare(a.date)));
+    // Update attendance list
+    const updatedAttendance = attendance.filter(a => a.id !== record.id);
+    setAttendance([record, ...updatedAttendance].sort((a, b) => b.date.localeCompare(a.date)));
     
     setShowSignaturePad(false);
   };
-
-  const today = new Date().toISOString().split('T')[0];
-  const todayRecord = attendance.find(a => a.date === today);
 
   const getProgramLabel = (program: string) => {
     switch (program) {
@@ -97,10 +102,26 @@ export default function ParentChildView() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!student) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+        <div className="text-center">
+          <p className="text-red-600">No se encontró el estudiante</p>
+          <Link href="/parent" className="text-blue-600 hover:underline mt-2 inline-block">
+            Volver al inicio
+          </Link>
+        </div>
       </div>
     );
   }
@@ -113,12 +134,15 @@ export default function ParentChildView() {
           <Link href="/">
             <Image src="/images/logo.png" alt="Nido Montessori" width={120} height={50} />
           </Link>
-          <button
-            onClick={handleLogout}
-            className="text-gray-500 hover:text-gray-700 text-sm"
-          >
-            Cerrar Sesión
-          </button>
+          <div className="flex items-center gap-4">
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">🔥 En vivo</span>
+            <button
+              onClick={handleLogout}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              Cerrar Sesión
+            </button>
+          </div>
         </div>
       </header>
 
@@ -280,6 +304,7 @@ function SignaturePadModal({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -351,11 +376,13 @@ function SignaturePadModal({
     }
   };
 
-  const saveSignature = () => {
+  const saveSignature = async () => {
     const canvas = canvasRef.current;
     if (canvas && hasSignature) {
+      setSaving(true);
       const dataUrl = canvas.toDataURL('image/png');
-      onSave(dataUrl);
+      await onSave(dataUrl);
+      setSaving(false);
     }
   };
 
@@ -406,10 +433,10 @@ function SignaturePadModal({
             </button>
             <button
               onClick={saveSignature}
-              disabled={!hasSignature}
+              disabled={!hasSignature || saving}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
-              Confirmar {type === 'entry' ? 'Entrada' : 'Salida'}
+              {saving ? 'Guardando...' : `Confirmar ${type === 'entry' ? 'Entrada' : 'Salida'}`}
             </button>
           </div>
         </div>
