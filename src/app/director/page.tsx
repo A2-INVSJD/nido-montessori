@@ -18,13 +18,8 @@ export default function DirectorLogin() {
     setError('');
 
     try {
-      // Import db dynamically to avoid SSR issues
       const db = await import('@/lib/db');
-      
-      // Initialize default data (creates director if not exists)
       await db.initializeDefaultData();
-      
-      // Verify credentials against Firestore
       const isValid = await db.verifyDirectorLogin(email, password);
       
       if (isValid) {
@@ -42,79 +37,117 @@ export default function DirectorLogin() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link href="/">
-            <Image 
-              src="/images/logo.png" 
-              alt="Nido Montessori" 
-              width={150} 
-              height={80}
-              className="mx-auto mb-4"
-            />
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-800">Portal del Director</h1>
-          <p className="text-gray-600">Ingrese sus credenciales para continuar</p>
-        </div>
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-[#FFF8F0] to-orange-50 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative elements */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-20 left-20 w-64 h-64 bg-blue-200/30 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-20 right-20 w-80 h-80 bg-orange-200/30 rounded-full blur-3xl animate-float-slow" />
+        <div className="absolute top-1/2 left-1/4 text-6xl animate-float opacity-20">👶</div>
+        <div className="absolute top-1/3 right-1/4 text-5xl animate-float-slow opacity-20">📚</div>
+        <div className="absolute bottom-1/3 left-1/3 text-4xl animate-float opacity-20">🎨</div>
+      </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
-              {error}
+      <div className="relative w-full max-w-md">
+        {/* Card */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50 animate-bounce-in">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-block">
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-r from-blue-200 to-orange-200 rounded-full blur-xl opacity-50" />
+                <Image 
+                  src="/images/logo.png" 
+                  alt="Nido Montessori" 
+                  width={160} 
+                  height={80}
+                  className="relative animate-wiggle"
+                />
+              </div>
+            </Link>
+            <div className="mt-6">
+              <span className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
+                <span>👩‍💼</span> Portal del Director
+              </span>
             </div>
-          )}
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Correo Electrónico
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="director@nidomontessori.hn"
-              required
-            />
+            <p className="text-gray-500 mt-3">Ingrese sus credenciales para continuar</p>
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="••••••••"
-              required
-            />
+          <form onSubmit={handleLogin} className="space-y-5">
+            {error && (
+              <div className="flex items-center gap-3 bg-red-50 text-red-600 p-4 rounded-2xl text-sm animate-slide-up border border-red-100">
+                <span className="text-xl">⚠️</span>
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
+                Correo Electrónico
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl">📧</span>
+                <input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-blue-400 focus:bg-white transition-all text-gray-800"
+                  placeholder="director@nidomontessori.hn"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
+                Contraseña
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl">🔒</span>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-blue-400 focus:bg-white transition-all text-gray-800"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full btn-secondary text-white py-4 rounded-2xl font-bold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Ingresando...
+                </>
+              ) : (
+                <>
+                  <span>🚀</span>
+                  Ingresar
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors">
+              <span>←</span>
+              Volver al inicio
+            </Link>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-400"
-          >
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">
-            ← Volver al inicio
-          </Link>
-        </div>
-
-        {/* Demo credentials hint */}
-        <div className="mt-6 p-4 bg-yellow-50 rounded-lg">
-          <p className="text-xs text-yellow-700 font-medium">Demo:</p>
-          <p className="text-xs text-yellow-600">Email: director@nidomontessori.hn</p>
-          <p className="text-xs text-yellow-600">Password: nido2024</p>
+          {/* Demo hint */}
+          <div className="mt-6 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl border border-yellow-200">
+            <p className="text-xs text-yellow-700 font-semibold mb-1">🔑 Credenciales de Demo:</p>
+            <p className="text-xs text-yellow-600 font-mono">director@nidomontessori.hn</p>
+            <p className="text-xs text-yellow-600 font-mono">nido2024</p>
+          </div>
         </div>
       </div>
     </main>
